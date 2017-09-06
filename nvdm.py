@@ -5,6 +5,8 @@ import numpy as np
 import tensorflow as tf
 import math
 import os
+opj = os.path.join
+
 import utils as utils
 
 np.random.seed(0)
@@ -20,6 +22,7 @@ flags.DEFINE_integer('n_sample', 1, 'Number of samples.')
 flags.DEFINE_integer('vocab_size', 2000, 'Vocabulary size.')
 flags.DEFINE_boolean('test', False, 'Process test data.')
 flags.DEFINE_string('non_linearity', 'tanh', 'Non-linearity of the MLP.')
+flags.DEFINE_string('checkpoint_dir', 'checkpoint', 'Checkpoint directory.')
 FLAGS = flags.FLAGS
 
 class NVDM(object):
@@ -94,7 +97,8 @@ def train(sess, model,
           test_url, 
           batch_size, 
           training_epochs=1000, 
-          alternate_epochs=10):
+          alternate_epochs=10,
+          saver=None):
   """train nvdm model."""
   train_set, train_count = utils.data_set(train_url)
   test_set, test_count = utils.data_set(test_url)
@@ -104,7 +108,7 @@ def train(sess, model,
 
   dev_batches = utils.create_batches(len(dev_set), batch_size, shuffle=False)
   test_batches = utils.create_batches(len(test_set), batch_size, shuffle=False)
-  
+  dev_perp = 1e6
   for epoch in range(training_epochs):
     train_batches = utils.create_batches(len(train_set), batch_size, shuffle=True)
     #-------------------------------
@@ -171,6 +175,9 @@ def train(sess, model,
            '| Perplexity: {:.9f}'.format(print_ppx),
            '| Per doc ppx: {:.5f}'.format(print_ppx_perdoc),
            '| KLD: {:.5}'.format(print_kld))        
+    if print_ppx < dev_perf:
+        saver.save(sess, opj(FLAGS.checkpoint_dir, 'nvdm'), global_step=epoch)
+
     #-------------------------------
     # test
     if FLAGS.test:
@@ -215,13 +222,14 @@ def main(argv=None):
                 batch_size=FLAGS.batch_size,
                 non_linearity=non_linearity)
     sess = tf.Session()
-    init = tf.initialize_all_variables()
+    init = tf.glboal_variables_initializer()
+    saver = tf.train.Saver(max_to_keep=3)
     sess.run(init)
 
     train_url = os.path.join(FLAGS.data_dir, 'train.feat')
     test_url = os.path.join(FLAGS.data_dir, 'test.feat')
 
-    train(sess, nvdm, train_url, test_url, FLAGS.batch_size)
+    train(sess, nvdm, train_url, test_url, FLAGS.batch_size, saver=saver)
 
 if __name__ == '__main__':
     tf.app.run()
