@@ -92,6 +92,35 @@ class NVDM(object):
         self.optim_enc = optimizer.apply_gradients(zip(enc_grads, enc_vars))
         self.optim_dec = optimizer.apply_gradients(zip(dec_grads, dec_vars))
 
+def test(sess, model, test_url, batch_size):
+      test_set, test_count = utils.data_set(test_url)
+      test_batches = utils.create_batches(len(test_set), batch_size, shuffle=False)
+      loss_sum = 0.0
+      kld_sum = 0.0
+      ppx_sum = 0.0
+      word_count = 0
+      doc_count = 0
+      for idx_batch in test_batches:
+        data_batch, count_batch, mask = utils.fetch_data(
+          test_set, test_count, idx_batch, FLAGS.vocab_size)
+        input_feed = {model.x.name: data_batch,
+                      model.mask.name: mask}
+        loss, kld = sess.run([model.objective, model.kld],
+                             input_feed)
+        loss_sum += np.sum(loss)
+        kld_sum += np.sum(kld)/np.sum(mask)
+        word_count += np.sum(count_batch)
+        count_batch = np.add(count_batch, 1e-12)
+        ppx_sum += np.sum(np.divide(loss, count_batch))
+        doc_count += np.sum(mask)
+      print_ppx = np.exp(loss_sum / word_count)
+      print_ppx_perdoc = np.exp(ppx_sum / doc_count)
+      print_kld = kld_sum/len(test_batches)
+      print('| Epoch test: {:d} |'.format(1),
+             '| Perplexity: {:.9f}'.format(print_ppx),
+             '| Per doc ppx: {:.5f}'.format(print_ppx_perdoc),
+             '| KLD: {:.5}'.format(print_kld))
+
 def train(sess, model, 
           train_url, 
           test_url, 
@@ -108,7 +137,7 @@ def train(sess, model,
 
   dev_batches = utils.create_batches(len(dev_set), batch_size, shuffle=False)
   test_batches = utils.create_batches(len(test_set), batch_size, shuffle=False)
-  dev_perp = 1e6
+  dev_perf = 1e9
   for epoch in range(training_epochs):
     train_batches = utils.create_batches(len(train_set), batch_size, shuffle=True)
     #-------------------------------
@@ -177,34 +206,7 @@ def train(sess, model,
            '| KLD: {:.5}'.format(print_kld))        
     if print_ppx < dev_perf:
         saver.save(sess, opj(FLAGS.checkpoint_dir, 'nvdm'), global_step=epoch)
-
-    #-------------------------------
-    # test
-    if FLAGS.test:
-      loss_sum = 0.0
-      kld_sum = 0.0
-      ppx_sum = 0.0
-      word_count = 0
-      doc_count = 0
-      for idx_batch in test_batches:
-        data_batch, count_batch, mask = utils.fetch_data(
-          test_set, test_count, idx_batch, FLAGS.vocab_size)
-        input_feed = {model.x.name: data_batch, model.mask.name: mask}
-        loss, kld = sess.run([model.objective, model.kld],
-                             input_feed)
-        loss_sum += np.sum(loss)
-        kld_sum += np.sum(kld)/np.sum(mask) 
-        word_count += np.sum(count_batch)
-        count_batch = np.add(count_batch, 1e-12)
-        ppx_sum += np.sum(np.divide(loss, count_batch))
-        doc_count += np.sum(mask) 
-      print_ppx = np.exp(loss_sum / word_count)
-      print_ppx_perdoc = np.exp(ppx_sum / doc_count)
-      print_kld = kld_sum/len(test_batches)
-      print('| Epoch test: {:d} |'.format(epoch+1), 
-             '| Perplexity: {:.9f}'.format(print_ppx),
-             '| Per doc ppx: {:.5f}'.format(print_ppx_perdoc),
-             '| KLD: {:.5}'.format(print_kld))   
+        dev_perf = print_ppx
 
 def main(argv=None):
     if FLAGS.non_linearity == 'tanh':
@@ -214,6 +216,7 @@ def main(argv=None):
     else:
       non_linearity = tf.nn.relu
 
+    with tf.Session() as sess:
     nvdm = NVDM(vocab_size=FLAGS.vocab_size,
                 n_hidden=FLAGS.n_hidden,
                 n_topic=FLAGS.n_topic, 
@@ -221,16 +224,20 @@ def main(argv=None):
                 learning_rate=FLAGS.learning_rate, 
                 batch_size=FLAGS.batch_size,
                 non_linearity=non_linearity)
-    sess = tf.Session()
-    init = tf.glboal_variables_initializer()
-    saver = tf.train.Saver(max_to_keep=3)
-    file_writer = tf.summary.FileWriter('logs', sess.graph)
-    sess.run(init)
 
     train_url = os.path.join(FLAGS.data_dir, 'train.feat')
     test_url = os.path.join(FLAGS.data_dir, 'test.feat')
-
+        saver = tf.train.Saver(max_to_keep=3)
+        if FLAGS.test:
+            saver.restore(sess, tf.train.latest_checkpoint(FLAGS.checkpoint_dir))
+            # graph = tf.get_default_graph()
+            test(sess, nvdm, test_url, FLAGS.batch_size)
+        else:
+            file_writer = tf.summary.FileWriter('logs', sess.graph)
+            init = tf.global_variables_initializer()
+            sess.run(init)
     train(sess, nvdm, train_url, test_url, FLAGS.batch_size, saver=saver)
+    return
 
 if __name__ == '__main__':
     tf.app.run()
