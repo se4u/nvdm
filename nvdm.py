@@ -217,26 +217,25 @@ def main(argv=None):
       non_linearity = tf.nn.relu
 
     with tf.Session() as sess:
-    nvdm = NVDM(vocab_size=FLAGS.vocab_size,
-                n_hidden=FLAGS.n_hidden,
-                n_topic=FLAGS.n_topic, 
-                n_sample=FLAGS.n_sample,
-                learning_rate=FLAGS.learning_rate, 
-                batch_size=FLAGS.batch_size,
-                non_linearity=non_linearity)
-
-    train_url = os.path.join(FLAGS.data_dir, 'train.feat')
-    test_url = os.path.join(FLAGS.data_dir, 'test.feat')
+        nvdm = NVDM(vocab_size=FLAGS.vocab_size,
+                    n_hidden=FLAGS.n_hidden,
+                    n_topic=FLAGS.n_topic, 
+                    n_sample=FLAGS.n_sample,
+                    learning_rate=FLAGS.learning_rate, 
+                    batch_size=FLAGS.batch_size,
+                    non_linearity=non_linearity)
+    
+        train_url = os.path.join(FLAGS.data_dir, 'train.feat')
+        test_url = os.path.join(FLAGS.data_dir, 'test.feat')
         saver = tf.train.Saver(max_to_keep=3)
         if FLAGS.test:
             saver.restore(sess, tf.train.latest_checkpoint(FLAGS.checkpoint_dir))
-            # graph = tf.get_default_graph()
             test(sess, nvdm, test_url, FLAGS.batch_size)
         else:
             file_writer = tf.summary.FileWriter('logs', sess.graph)
             init = tf.global_variables_initializer()
             sess.run(init)
-    train(sess, nvdm, train_url, test_url, FLAGS.batch_size, saver=saver)
+            train(sess, nvdm, train_url, test_url, FLAGS.batch_size, saver=saver)
     return
 
 if __name__ == '__main__':
