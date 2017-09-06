@@ -224,6 +224,7 @@ def main(argv=None):
     sess = tf.Session()
     init = tf.glboal_variables_initializer()
     saver = tf.train.Saver(max_to_keep=3)
+    file_writer = tf.summary.FileWriter('logs', sess.graph)
     sess.run(init)
 
     train_url = os.path.join(FLAGS.data_dir, 'train.feat')
