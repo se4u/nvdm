@@ -1,0 +1,5 @@
+checkpoint/
+data/rcv1-v2/
+logs/
+train.log
+train_log
