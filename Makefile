@@ -10,7 +10,8 @@ activate:
 	echo source ~/tensorflow/bin/activate
 
 # DATA_DIR := data/20news/
-DATA_DIR := data/rcv1-v2
+# DATA_DIR := data/rcv1-v2
+DATA_DIR := data/tac2017
 CHECKPOINT_DIR := checkpoint_$(notdir $(DATA_DIR))
 VOCAB_SIZE := $(shell wc -l $(DATA_DIR)/vocab.new | cut -d' ' -f 1)
 echo_%:
@@ -18,5 +19,5 @@ echo_%:
 test:
 	TF_CPP_MIN_LOG_LEVEL=2 CUDA_VISIBLE_DEVICES=$(FREE_GPU) python nvdm.py --test True --data_dir $(DATA_DIR) --checkpoint_dir $(CHECKPOINT_DIR) --vocab_size $(VOCAB_SIZE)
 
-run:	
+train:	
 	TF_CPP_MIN_LOG_LEVEL=2 CUDA_VISIBLE_DEVICES=$(FREE_GPU) python nvdm.py --data_dir $(DATA_DIR) --checkpoint_dir $(CHECKPOINT_DIR) --vocab_size $(VOCAB_SIZE)
